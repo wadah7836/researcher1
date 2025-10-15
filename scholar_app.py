@@ -151,3 +151,4 @@ if __name__ == "__main__":
     # استخدم بورت من متغير البيئة PORT لتشغيل التطبيق على Render أو أي سيرفر ديناميكي
     port = int(os.environ.get("PORT", 8080))
     start_server(fetch_full_scholar_data, port=port, debug=True)
+
