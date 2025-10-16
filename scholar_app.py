@@ -11,6 +11,7 @@ put_html = output.put_html
 
 JSON_FILE = "scholar_full_data.json"
 
+
 def fetch_full_scholar_data():
     url = input.input("أدخل رابط الباحث في Google Scholar:", type="text")
     if not url:
@@ -97,8 +98,7 @@ def fetch_full_scholar_data():
 
         put_success(f"✅ تم جلب جميع بيانات الباحث وحفظها في {JSON_FILE}")
 
-        # --- عرض البيانات بشكل جميل ---
-        # بطاقة الباحث
+        # عرض البيانات بشكل جميل
         html_card = f"""
         <div style='display:flex; align-items:center; gap:20px; margin-bottom:20px;'>
             <img src='{image_url}' alt='صورة الباحث' width='120' style='border-radius:10px;'/>
@@ -112,7 +112,6 @@ def fetch_full_scholar_data():
         """
         put_html(html_card)
 
-        # جدول الإحصائيات
         stats_html = f"""
         <table border='1' cellpadding='8' style='border-collapse:collapse; margin-bottom:20px;'>
             <tr style='background:#f0f0f0'><th>الإحصائية</th><th>الكل</th><th>منذ 2018</th></tr>
@@ -123,7 +122,6 @@ def fetch_full_scholar_data():
         """
         put_html(stats_html)
 
-        # جدول البحوث
         publications_html = """
         <table border='1' cellpadding='6' style='border-collapse:collapse; width:100%'>
             <tr style='background:#f0f0f0'>
@@ -148,7 +146,6 @@ def fetch_full_scholar_data():
 
 
 if __name__ == "__main__":
-    # استخدم بورت من متغير البيئة PORT لتشغيل التطبيق على Render أو أي سيرفر ديناميكي
+    # هذا السطر يجعل التطبيق يشتغل على Replit أو Render أو أي سيرفر ويب
     port = int(os.environ.get("PORT", 8080))
-    start_server(fetch_full_scholar_data, port=port, debug=True)
-
+    start_server(fetch_full_scholar_data, port=port, host="0.0.0.0")
