@@ -1,8 +1,8 @@
 from pywebio import start_server, input, output
-import requests
 from bs4 import BeautifulSoup
 import json
-import os  # لإحضار متغيرات البيئة
+import os
+from playwright.sync_api import sync_playwright  # <-- استيراد Playwright
 
 put_text = output.put_text
 put_success = output.put_success
@@ -11,7 +11,6 @@ put_html = output.put_html
 
 JSON_FILE = "scholar_full_data.json"
 
-
 def fetch_full_scholar_data():
     url = input.input("أدخل رابط الباحث في Google Scholar:", type="text")
     if not url:
@@ -19,10 +18,15 @@ def fetch_full_scholar_data():
         return
 
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        res = requests.get(url, headers=headers)
-        res.raise_for_status()
-        soup = BeautifulSoup(res.text, "html.parser")
+        # تشغيل Playwright headless
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url)
+            html_content = page.content()
+            browser.close()
+
+        soup = BeautifulSoup(html_content, "html.parser")
 
         # --- الاسم والصورة ---
         name_tag = soup.find("div", id="gsc_prf_in")
@@ -98,7 +102,7 @@ def fetch_full_scholar_data():
 
         put_success(f"✅ تم جلب جميع بيانات الباحث وحفظها في {JSON_FILE}")
 
-        # عرض البيانات بشكل جميل
+        # عرض البيانات
         html_card = f"""
         <div style='display:flex; align-items:center; gap:20px; margin-bottom:20px;'>
             <img src='{image_url}' alt='صورة الباحث' width='120' style='border-radius:10px;'/>
@@ -146,6 +150,5 @@ def fetch_full_scholar_data():
 
 
 if __name__ == "__main__":
-    # هذا السطر يجعل التطبيق يشتغل على Replit أو Render أو أي سيرفر ويب
     port = int(os.environ.get("PORT", 8080))
     start_server(fetch_full_scholar_data, port=port, host="0.0.0.0")
