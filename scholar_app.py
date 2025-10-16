@@ -1,8 +1,8 @@
 from pywebio import start_server, input, output
+import requests
 from bs4 import BeautifulSoup
 import json
 import os
-from playwright.sync_api import sync_playwright  # <-- استيراد Playwright
 
 put_text = output.put_text
 put_success = output.put_success
@@ -11,6 +11,13 @@ put_html = output.put_html
 
 JSON_FILE = "scholar_full_data.json"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/117.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
 def fetch_full_scholar_data():
     url = input.input("أدخل رابط الباحث في Google Scholar:", type="text")
     if not url:
@@ -18,15 +25,13 @@ def fetch_full_scholar_data():
         return
 
     try:
-        # تشغيل Playwright headless
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(url)
-            html_content = page.content()
-            browser.close()
+        # استخدام جلسة لتجنب الحظر المؤقت
+        session = requests.Session()
+        session.headers.update(HEADERS)
 
-        soup = BeautifulSoup(html_content, "html.parser")
+        res = session.get(url, timeout=10)
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, "html.parser")
 
         # --- الاسم والصورة ---
         name_tag = soup.find("div", id="gsc_prf_in")
@@ -102,7 +107,7 @@ def fetch_full_scholar_data():
 
         put_success(f"✅ تم جلب جميع بيانات الباحث وحفظها في {JSON_FILE}")
 
-        # عرض البيانات
+        # عرض البيانات بشكل جميل
         html_card = f"""
         <div style='display:flex; align-items:center; gap:20px; margin-bottom:20px;'>
             <img src='{image_url}' alt='صورة الباحث' width='120' style='border-radius:10px;'/>
@@ -145,6 +150,11 @@ def fetch_full_scholar_data():
         publications_html += "</table>"
         put_html(publications_html)
 
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 403:
+            put_error("❌ تم حظر الوصول! جرب رابط آخر أو استخدم VPN.")
+        else:
+            put_error(f"❌ حدث خطأ HTTP: {e}")
     except Exception as e:
         put_error(f"❌ حدث خطأ أثناء الجلب: {e}")
 
