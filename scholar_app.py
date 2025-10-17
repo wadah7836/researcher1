@@ -2,7 +2,6 @@
 from pywebio import start_server, input, output
 import requests
 from bs4 import BeautifulSoup
-import json
 import os
 import time
 
@@ -10,8 +9,6 @@ put_text = output.put_text
 put_success = output.put_success
 put_error = output.put_error
 put_html = output.put_html
-
-JSON_FILE = "scholar_full_data.json"
 
 # HEADERS قوية لمحاكاة المتصفح وتقليل حظر 403
 HEADERS = {
@@ -30,7 +27,6 @@ def fetch_scholar_page(url: str):
     """جلب صفحة Google Scholar مع محاولة التحايل على الحظر"""
     session = requests.Session()
     session.headers.update(HEADERS)
-    # محاولة بسيطة مع retry
     for attempt in range(3):
         try:
             resp = session.get(url, timeout=15)
@@ -125,11 +121,11 @@ def fetch_full_scholar_data():
         data = parse_soup_to_data(soup)
         data["url"] = url
 
-        # حفظ البيانات إلى JSON
-        with open(JSON_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        # =============================
+        # إزالة حفظ JSON نهائيًا
+        # =============================
 
-        put_success(f"✅ تم جلب جميع بيانات الباحث وحفظها في {JSON_FILE}")
+        put_success(f"✅ تم جلب جميع بيانات الباحث")
 
         # عرض النتائج
         html_card = f"""
