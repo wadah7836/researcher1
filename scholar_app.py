@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
-import random
 
 put_text = output.put_text
 put_success = output.put_success
@@ -12,30 +11,25 @@ put_html = output.put_html
 
 JSON_FILE = "scholar_full_data.json"
 
-# 🧩 قائمة وكلاء (Proxies) مجانية لتجاوز 403
-PROXIES = [
-    "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?",
-    "https://thingproxy.freeboard.io/fetch/"
-]
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/117.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 def fetch_full_scholar_data():
     url = input.input("أدخل رابط الباحث في Google Scholar:", type="text")
     if not url:
-        put_error("❌ يرجى إدخال رابط الباحث")
+        put_error("يرجى إدخال رابط الباحث")
         return
 
     try:
-        proxy_prefix = random.choice(PROXIES)
-        full_url = proxy_prefix + url
+        # استخدام جلسة لتجنب الحظر المؤقت
+        session = requests.Session()
+        session.headers.update(HEADERS)
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/120.0 Safari/537.36"
-        }
-
-        res = requests.get(full_url, headers=headers, timeout=20)
+        res = session.get(url, timeout=10)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
 
@@ -43,9 +37,9 @@ def fetch_full_scholar_data():
         name_tag = soup.find("div", id="gsc_prf_in")
         name = name_tag.text.strip() if name_tag else "غير معروف"
         image_tag = soup.find("img", id="gsc_prf_pup-img")
-        image_url = f"https://scholar.google.com{image_tag['src']}" if image_tag else None
+        image_url = "https://scholar.google.com" + image_tag["src"] if image_tag else None
 
-        # --- المؤسسة والمجالات ---
+        # --- المؤسسة والمجال والبريد ---
         affiliation = soup.find("div", class_="gsc_prf_il")
         affiliation = affiliation.text.strip() if affiliation else "غير محدد"
         fields = [a.text for a in soup.select("#gsc_prf_int a")]
@@ -56,7 +50,6 @@ def fetch_full_scholar_data():
         stats_table = soup.find("table", id="gsc_rsb_st")
         citations_all = h_index_all = i10_index_all = "0"
         citations_since = h_index_since = i10_index_since = "0"
-
         if stats_table:
             tds = stats_table.find_all("td", class_="gsc_rsb_std")
             if len(tds) >= 6:
@@ -67,12 +60,12 @@ def fetch_full_scholar_data():
                 i10_index_all = tds[4].text
                 i10_index_since = tds[5].text
 
-        # --- أول 10 بحوث فقط ---
+        # --- قائمة البحوث ---
         publications = []
-        for row in soup.select(".gsc_a_tr")[:10]:
+        for row in soup.select(".gsc_a_tr"):
             title_tag = row.select_one(".gsc_a_at")
             title = title_tag.text.strip() if title_tag else "بدون عنوان"
-            link = f"https://scholar.google.com{title_tag['href']}" if title_tag else "#"
+            link = "https://scholar.google.com" + title_tag["href"] if title_tag else "#"
 
             authors_tag = row.select_one(".gsc_a_at+ .gs_gray")
             authors = authors_tag.text.strip() if authors_tag else ""
@@ -108,15 +101,16 @@ def fetch_full_scholar_data():
             "url": url
         }
 
+        # حفظ البيانات
         with open(JSON_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-        put_success("✅ تم جلب بيانات الباحث بنجاح!")
+        put_success(f"✅ تم جلب جميع بيانات الباحث وحفظها في {JSON_FILE}")
 
-        # --- عرض النتائج ---
+        # عرض البيانات بشكل جميل
         html_card = f"""
         <div style='display:flex; align-items:center; gap:20px; margin-bottom:20px;'>
-            <img src='{image_url}' width='120' style='border-radius:10px;'/>
+            <img src='{image_url}' alt='صورة الباحث' width='120' style='border-radius:10px;'/>
             <div>
                 <h2>{name}</h2>
                 <p><b>المؤسسة:</b> {affiliation}</p>
@@ -137,14 +131,14 @@ def fetch_full_scholar_data():
         """
         put_html(stats_html)
 
-        pubs_html = """
+        publications_html = """
         <table border='1' cellpadding='6' style='border-collapse:collapse; width:100%'>
             <tr style='background:#f0f0f0'>
                 <th>العنوان</th><th>المؤلفون</th><th>المجلة</th><th>الاستشهادات</th><th>السنة</th>
             </tr>
         """
         for pub in publications:
-            pubs_html += f"""
+            publications_html += f"""
             <tr>
                 <td><a href='{pub['link']}' target='_blank'>{pub['title']}</a></td>
                 <td>{pub['authors']}</td>
@@ -153,9 +147,14 @@ def fetch_full_scholar_data():
                 <td>{pub['year']}</td>
             </tr>
             """
-        pubs_html += "</table>"
-        put_html(pubs_html)
+        publications_html += "</table>"
+        put_html(publications_html)
 
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 403:
+            put_error("❌ تم حظر الوصول! جرب رابط آخر أو استخدم VPN.")
+        else:
+            put_error(f"❌ حدث خطأ HTTP: {e}")
     except Exception as e:
         put_error(f"❌ حدث خطأ أثناء الجلب: {e}")
 
