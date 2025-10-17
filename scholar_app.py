@@ -6,7 +6,6 @@ import os
 import time
 
 put_text = output.put_text
-put_success = output.put_success
 put_error = output.put_error
 put_html = output.put_html
 
@@ -55,17 +54,13 @@ def parse_soup_to_data(soup):
 
     # الإحصاءات
     citations_all = h_index_all = i10_index_all = "0"
-    citations_since = h_index_since = i10_index_since = "0"
     stats_table = soup.find("table", id="gsc_rsb_st")
     if stats_table:
         tds = stats_table.find_all("td", class_="gsc_rsb_std")
         if len(tds) >= 6:
             citations_all = tds[0].text
-            citations_since = tds[1].text
             h_index_all = tds[2].text
-            h_index_since = tds[3].text
             i10_index_all = tds[4].text
-            i10_index_since = tds[5].text
 
     # قائمة البحوث
     publications = []
@@ -101,9 +96,9 @@ def parse_soup_to_data(soup):
         "fields": fields,
         "email": email,
         "image": image_url,
-        "citations": {"all": citations_all, "since2018": citations_since},
-        "h_index": {"all": h_index_all, "since2018": h_index_since},
-        "i10_index": {"all": i10_index_all, "since2018": i10_index_since},
+        "citations": {"all": citations_all},
+        "h_index": {"all": h_index_all},
+        "i10_index": {"all": i10_index_all},
         "publications": publications,
     }
 
@@ -115,17 +110,10 @@ def fetch_full_scholar_data():
         return
 
     try:
-        put_text("جاري جلب البيانات عبر requests...")
+        put_text("هيئة البحث العلمي")  # عرض العبارة المطلوبة في الواجهة
         html = fetch_scholar_page(url)
         soup = BeautifulSoup(html, "html.parser")
         data = parse_soup_to_data(soup)
-        data["url"] = url
-
-        # =============================
-        # إزالة حفظ JSON نهائيًا
-        # =============================
-
-        put_success(f"✅ تم جلب جميع بيانات الباحث")
 
         # عرض النتائج
         html_card = f"""
