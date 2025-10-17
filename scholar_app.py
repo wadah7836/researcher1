@@ -59,25 +59,8 @@ def fetch_via_requests(url: str, retries=3, delay=5):
         time.sleep(delay)
     raise Exception("فشل الاتصال بعد عدة محاولات. قد يكون Google حظرك مؤقتًا.")
 
-def parse_soup_to_data(soup):
-    name_tag = soup.find("div", id="gsc_prf_in")
-    name = name_tag.text.strip() if name_tag else "غير معروف"
-    image_tag = soup.find("img", id="gsc_prf_pup-img")
-    image_url = "https://scholar.google.com" + image_tag["src"] if image_tag else None
-
-    affiliation = soup.find("div", class_="gsc_prf_il")
-    affiliation = affiliation.text.strip() if affiliation else "غير محدد"
-    fields = [a.text.strip() for a in soup.select("#gsc_prf_int a")]
-    email_tag = soup.find("div", class_="gsc_prf_ivh")
-    email = email_tag.text.strip() if email_tag else "غير متوفر"
-
-    citations_all = h_index_all = i10_index_all = "0"
-    stats_table = soup.find("table", id="gsc_rsb_st")
-    if stats_table:
-        tds = stats_table.find_all("td", class_="gsc_rsb_std")
-        if len(tds) >= 6:
-            citations_all, _, h_index_all, _, i10_index_all, _ = [td.text for td in tds[:6]]
-
+def parse_publications(soup):
+    """تحليل البحوث من صفحة واحدة"""
     publications = []
     for row in soup.select(".gsc_a_tr"):
         title_tag = row.select_one(".gsc_a_at")
@@ -99,6 +82,41 @@ def parse_soup_to_data(soup):
             "year": year,
             "link": link
         })
+    return publications
+
+def parse_soup_to_data(soup, base_url):
+    """تحليل بيانات الباحث وجلب كل البحوث"""
+    name_tag = soup.find("div", id="gsc_prf_in")
+    name = name_tag.text.strip() if name_tag else "غير معروف"
+    image_tag = soup.find("img", id="gsc_prf_pup-img")
+    image_url = "https://scholar.google.com" + image_tag["src"] if image_tag else None
+
+    affiliation = soup.find("div", class_="gsc_prf_il")
+    affiliation = affiliation.text.strip() if affiliation else "غير محدد"
+    fields = [a.text.strip() for a in soup.select("#gsc_prf_int a")]
+    email_tag = soup.find("div", class_="gsc_prf_ivh")
+    email = email_tag.text.strip() if email_tag else "غير متوفر"
+
+    citations_all = h_index_all = i10_index_all = "0"
+    stats_table = soup.find("table", id="gsc_rsb_st")
+    if stats_table:
+        tds = stats_table.find_all("td", class_="gsc_rsb_std")
+        if len(tds) >= 6:
+            citations_all, _, h_index_all, _, i10_index_all, _ = [td.text for td in tds[:6]]
+
+    # جلب كل البحوث عبر الصفحات
+    publications = []
+    start = 0
+    while True:
+        page_url = f"{base_url}&cstart={start}&pagesize=20"
+        html = fetch_via_requests(page_url)
+        page_soup = BeautifulSoup(html, "html.parser")
+        new_pubs = parse_publications(page_soup)
+        if not new_pubs:
+            break
+        publications.extend(new_pubs)
+        start += 20
+        time.sleep(1)  # تأخير بسيط لتجنب الحظر المؤقت
 
     return {
         "name": name,
@@ -128,7 +146,7 @@ def fetch_full_scholar_data():
         put_text("🔍 جاري جلب البيانات من Google Scholar...")
         html = fetch_via_requests(url)
         soup = BeautifulSoup(html, "html.parser")
-        data = parse_soup_to_data(soup)
+        data = parse_soup_to_data(soup, url)
 
         # عرض بيانات الباحث
         html_card = f"""
@@ -155,6 +173,9 @@ def fetch_full_scholar_data():
         put_html(stats_html)
 
         pubs = data.get("publications", [])
+        total_pubs = len(pubs)
+        put_html(f"<h3 style='color:#004aad;'>عدد البحوث الكلي: {total_pubs}</h3>")
+
         pubs_html = """
         <table border='1' cellpadding='6' style='border-collapse:collapse; width:100%'>
             <tr style='background:#f0f0f0'>
