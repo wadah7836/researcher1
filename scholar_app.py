@@ -2,7 +2,7 @@ from pywebio import start_server, input, output
 import requests
 from bs4 import BeautifulSoup
 import json
-import os
+import os  # لإحضار متغيرات البيئة
 
 put_text = output.put_text
 put_success = output.put_success
@@ -11,12 +11,6 @@ put_html = output.put_html
 
 JSON_FILE = "scholar_full_data.json"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/117.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-}
 
 def fetch_full_scholar_data():
     url = input.input("أدخل رابط الباحث في Google Scholar:", type="text")
@@ -25,11 +19,8 @@ def fetch_full_scholar_data():
         return
 
     try:
-        # استخدام جلسة لتجنب الحظر المؤقت
-        session = requests.Session()
-        session.headers.update(HEADERS)
-
-        res = session.get(url, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
 
@@ -150,15 +141,11 @@ def fetch_full_scholar_data():
         publications_html += "</table>"
         put_html(publications_html)
 
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 403:
-            put_error("❌ تم حظر الوصول! جرب رابط آخر أو استخدم VPN.")
-        else:
-            put_error(f"❌ حدث خطأ HTTP: {e}")
     except Exception as e:
         put_error(f"❌ حدث خطأ أثناء الجلب: {e}")
 
 
 if __name__ == "__main__":
+    # هذا السطر يجعل التطبيق يشتغل على Replit أو Render أو أي سيرفر ويب
     port = int(os.environ.get("PORT", 8080))
     start_server(fetch_full_scholar_data, port=port, host="0.0.0.0")
