@@ -2,6 +2,7 @@
 from pywebio import start_server, input, output
 import requests
 from bs4 import BeautifulSoup
+import json
 import os
 import urllib.parse
 import random
@@ -13,6 +14,7 @@ put_success = output.put_success
 put_error = output.put_error
 put_html = output.put_html
 
+JSON_FILE = "scholar_full_data.json"
 LOG_FILE = "scholar_log.txt"
 
 USER_AGENTS = [
@@ -72,11 +74,14 @@ def parse_soup_to_data(soup):
     email = email_tag.text.strip() if email_tag else "غير متوفر"
 
     citations_all = h_index_all = i10_index_all = "0"
+    citations_since = h_index_since = i10_index_since = "0"
     stats_table = soup.find("table", id="gsc_rsb_st")
     if stats_table:
         tds = stats_table.find_all("td", class_="gsc_rsb_std")
         if len(tds) >= 6:
-            citations_all, _, h_index_all, _, i10_index_all, _ = [td.text for td in tds[:6]]
+            citations_all, citations_since, h_index_all, h_index_since, i10_index_all, i10_index_since = [
+                td.text for td in tds[:6]
+            ]
 
     publications = []
     for row in soup.select(".gsc_a_tr"):
@@ -106,33 +111,31 @@ def parse_soup_to_data(soup):
         "fields": fields,
         "email": email,
         "image": image_url,
-        "citations": citations_all,
-        "h_index": h_index_all,
-        "i10_index": i10_index_all,
+        "citations": {"all": citations_all, "since2018": citations_since},
+        "h_index": {"all": h_index_all, "since2018": h_index_since},
+        "i10_index": {"all": i10_index_all, "since2018": i10_index_since},
         "publications": publications,
     }
 
 def fetch_full_scholar_data():
-    # شعار الهيئة في البداية
-    put_html("""
-        <h1 style='text-align:center; color:#004aad; margin-bottom:20px;'>هيئة البحث العلمي</h1>
-        <hr>
-    """)
-
     url = input.input("أدخل رابط الباحث في Google Scholar:", type="text")
     if not url:
         put_error("يرجى إدخال رابط الباحث")
         return
-
     try:
         put_text("🔍 جاري جلب البيانات من Google Scholar...")
         html = fetch_via_requests(url)
         soup = BeautifulSoup(html, "html.parser")
         data = parse_soup_to_data(soup)
+        data["url"] = url
 
-        # عرض بيانات الباحث
+        with open(JSON_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        put_success(f"✅ تم جلب بيانات الباحث وحفظها في {JSON_FILE}")
+
+        # عرض البيانات في الصفحة
         html_card = f"""
-        <div style='display:flex; align-items:center; gap:20px; margin-bottom:20px; margin-top:20px;'>
+        <div style='display:flex; align-items:center; gap:20px; margin-bottom:20px;'>
             <img src='{data.get('image')}' alt='صورة الباحث' width='120' style='border-radius:10px;'/>
             <div>
                 <h2>{data.get('name')}</h2>
@@ -146,10 +149,10 @@ def fetch_full_scholar_data():
 
         stats_html = f"""
         <table border='1' cellpadding='8' style='border-collapse:collapse; margin-bottom:20px;'>
-            <tr style='background:#f0f0f0'><th>الإحصائية</th><th>القيمة</th></tr>
-            <tr><td>الاستشهادات</td><td>{data['citations']}</td></tr>
-            <tr><td>h-index</td><td>{data['h_index']}</td></tr>
-            <tr><td>i10-index</td><td>{data['i10_index']}</td></tr>
+            <tr style='background:#f0f0f0'><th>الإحصائية</th><th>الكل</th></tr>
+            <tr><td>الاستشهادات</td><td>{data['citations']['all']}</td></tr>
+            <tr><td>h-index</td><td>{data['h_index']['all']}</td></tr>
+            <tr><td>i10-index</td><td>{data['i10_index']['all']}</td></tr>
         </table>
         """
         put_html(stats_html)
@@ -173,12 +176,6 @@ def fetch_full_scholar_data():
             """
         pubs_html += "</table>"
         put_html(pubs_html)
-
-        # شعار الهيئة في النهاية
-        put_html("""
-            <hr>
-            <h2 style='text-align:center; color:#004aad; margin-top:20px;'>هيئة البحث العلمي</h2>
-        """)
 
     except Exception as e:
         log_error(f"خطأ أثناء التنفيذ: {e}")
